@@ -45,7 +45,9 @@
 
 - equals() : 它的作用也是**判断两个对象是否相等**，它不能用于比较基本数据类型的变量。
 
-- Object 的`equals`方法是比较的对象的**内存地址**，而 String 的`equals`方法比较的是**对象的值**。 (String 中的 equals 方法是被重写过的) 
+- Object 的`equals`方法是比较的对象的**内存地址**，而 String 的`equals`方法比较的是**对象的值**。 (String 中的 equals 方法是被重写过的)   
+
+- 建议安装阿里巴巴的p3c插件，可以检测到错误使用==会报错。
 
 - 重写 equals 时必须重写 hashCode 方法。  
 
