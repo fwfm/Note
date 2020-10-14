@@ -446,10 +446,209 @@ public class ImplUserDao implements IUserDao{
 - 建立两个配置文件
 
 - 实现配置：查询用户时，可以同时得到用户下所有账户信息；查询账户时，可以得到所属用户信息。（结果集使用resultMap进行封装 不同配置文件需要指定不同的resultMap子标签）
+```java
+public class Account implements Serializable {
+    private Integer id;
+    private Double money;
+    private Integer uid;
+    //设置一对一的关系(一个账户只能同时被一个用户拥有)
+    private User user;
+}
 
+public class User implements Serializable {
+    private Integer id;
+    private String username;
+    private Date birthday;
+    private String sex;
+    private String address;
+    //设置一对多的关系（一个用户可以同时拥有多个账户）
+    private List<Account> accounts;
+}
+```
+```xml
+<!-- IAccountDao.xml -->
+<mapper namespace="com.ralife.firstweb.dao.IAccountDao">
+    <!--一对一查询结果集封装 使用association-->
+    <resultMap id="accountMap" type="account">
+        <!--column表示查询语句封装的列名 property表示pojo类中对应的属性名-->
+        <id property="id" column="aid"></id>
+        <result property="money" column="money"></result>
+        <result property="uid" column="uid"></result>
+        <!--一对一查询  使用association的column属性-->
+        <association property="user" column="uid" javaType="user">
+            <id property="id" column="id"></id>
+            <result property="username" column="username"></result>
+            <result property="sex" column="sex"></result>
+            <result property="birthday" column="birthday"></result>
+            <result property="address" column="address"></result>
+        </association>
+    </resultMap>
+    <select id="findAll" resultMap="accountMap">
+        select a.id as aid,a.money,a.uid,u.id,u.username,u.sex,u.birthday,u.address from account a,`user` u where a.uid = u.id;
+    </select>
+</mapper>
+
+ <!-- IUserDao.xml -->
+<mapper namespace="com.ralife.firstweb.dao.IUserDao">
+    <!--一对多查询结果集封装 使用collection-->
+    <resultMap id="userMap" type="user">
+        <id property="id" column="id"></id>
+        <result property="username" column="username"></result>
+        <result property="sex" column="sex"></result>
+        <result property="birthday" column="birthday"></result>
+        <result property="address" column="address"></result>
+        <collection property="accounts" ofType="account">
+            <id property="id" column="aid"></id>
+            <result property="uid" column="uid"></result>
+            <result property="money" column="money"></result>
+        </collection>
+    </resultMap>
+
+    <select id="findAllAccount" resultMap="userMap">
+        select u.*,a.id as aid,a.uid,a.money from `user` u left join account a on u.id = a.uid;
+    </select>
+</mapper>
+```
 #### 多对多查询（需要使用中间表）
+```java
+public class User implements Serializable {
+    private Integer id;
+    private String username;
+    private Date birthday;
+    private String sex;
+    private String address;
+    private List<Role> roles;
+}
+public class Role {
+    private Integer roleId;
+    private String roleName;
+    private String roleDesc;
+    //配置多对多
+    private List<User> users;
+}
+```
+```xml
+ <!-- IUserDao.xml resultMap和一对多配置相同 只是sql语句有所改变 -->
+<resultMap id="userRoleMap" type="user">
+    <id column="id" property="id"></id>
+    <result column="username" property="username"></result>
+    <result column="sex" property="sex"></result>
+    <result column="birthday" property="birthday"></result>
+    <result column="address" property="address"></result>
+    <collection property="roles" ofType="role">
+        <id column="roleId" property="roleId"></id>
+        <result column="roleName" property="roleName"></result>
+        <result column="roleDesc" property="roleDesc"></result>
+    </collection>
+</resultMap>
+<select id="findAllRole" resultMap="userRoleMap">
+    select u.*,r.* from user u
+        left outer join role_user ru on u.id = ru.uid
+        left outer join role r on r.roleId = ru.rid
+</select>  
 
+ <!-- IRoleDao.xml -->
+ <resultMap id="roleMap" type="role">
+    <id column="roleId" property="roleId"></id>
+    <result column="roleName" property="roleName"></result>
+    <result column="roleDesc" property="roleDesc"></result>
+    <collection property="users" ofType="user">
+        <id column="id" property="id"></id>
+        <result column="username" property="username"></result>
+        <result column="sex" property="sex"></result>
+        <result column="birthday" property="birthday"></result>
+        <result column="address" property="address"></result>
+    </collection>
+</resultMap>
+
+<!--查询所有角色 同时查看角色所赋予的用户信息-->
+<select id="findRoleUser" resultMap="roleMap">
+    select r.*,u.* from role r
+        left outer join role_user ru on r.roleId = ru.rid
+        left outer join `user` u on u.id = ru.uid
+</select>
+```  
+## JNDI数据源  
+> JNDI: Java Naming and Directory Interface。是SUN公司推出的一套规范。目的是模仿windows系统中的注册表，实现在服务器中注册数据源。
 # 4. mybatis 的缓存和注解开发  
-## mybatis 中的加载时机(查询的时机)  
-## mybatis 中的一级缓存和二级缓存  
+## mybatis 延迟加载策略
+- 延迟加载：在真正使用数据时才发起查询，不用的时候不查询。(按需加载  懒加载)  
+  查询用户时，用户的账户信息应该是什么时候使用，什么时候查询出来。  
+
+- 立即加载：不管用不用，只要一调用方法，马上发起查询。  
+  查询账户时，账户所属用户信息应该时随着账户查询一起查询出来。  
+
+- 关联对象是一的情况下(多对一  一对一)通常采用立即加载。  
+
+- 关联对象是多的情况下(多对多 一对多)通常采用延迟加载。
+
+- 一对一延迟加载案例
+    - 使用`<association>`标签的select属性指定查询方法，column属性指定查询方法所需要的参数值(必须指定)  
+    - 配置主配置文件`<settings>`标签  
+```xml
+<!--mybatis-configuration.xml-->
+<!--配置参数-->
+<settings>
+    <!--开启延迟加载-->
+    <setting name="lazyLoadingEnabled" value="true"/>
+    <setting name="aggressiveLazyLoading" value="false"/>
+</settings>
+
+<!--IAccountDao.xml-->
+<resultMap id="lazyMap" type="account">
+    <!--column表示查询语句封装的列名 property表示pojo类中对应的属性名-->
+    <id property="id" column="id"></id>
+    <result property="money" column="money"></result>
+    <result property="uid" column="uid"></result>
+    <association property="user" column="uid" javaType="user" select="com.ralife.firstweb.dao.IUserDao.getUserById"></association>
+</resultMap>
+<select id="findLazyAll" resultMap="lazyMap">
+    select * from account
+</select>
+
+<!--IUserDao.xml-->
+<!--根据id获取用户-->
+<select id="getUserById" resultType="user" parameterType="java.lang.Integer">
+    select * from user where id=#{id};
+</select>
+```
+- 一对多延迟加载案例(同上)
+    - 使用`<collection>`标签的select属性指定查询方法，column属性指定查询方法所需要的参数值(必须指定)  
+    - 配置主配置文件`<settings>`标签
+
+## mybatis 中的缓存
+### 什么是缓存
+存在于内存中的临时数据。  
+
+### 为什么使用缓存 
+减少和数据库的交换次数，提高执行效率。
+### 缓存数据要求  
+适用于缓存：  
+- 经常**查询**并且不经常改变的。  
+- 数据的正确与否对最终结果影响不大的。  
+
+不适用于缓存：
+- 经常改变的数据。  
+- 数据的正确与否对最终结果影响很大的。（商品库存、银行汇率、股市牌价...）
+### Mybatis中的一级缓存和二级缓存  
+**一级缓存:（存对象）**
+- 指的是Mybatis中 **SqlSession** 对象的缓存。    
+  
+- 当我们执行查询之后，查询的结果会同时存入到 SqlSession 为我们提供的一块区域中(结构是一个Map)，当我们再次查询同样的数据，mybatis会先去 SqlSession 中查询是否有，有的话直接拿出来用，没有再去数据库中查询。  
+- 当 SqlSession 对象消失(执行update insert delete close clearCache方法)时，mybatis的一级缓存也会消失。  
+
+**二级缓存:（存数据）**  
+- 指的是Mybatis中 **SqlSessionFactory** 对象的缓存。由同一个SqlSessionFactory 对象创建的SqlSession共享其缓存。  
+
+- 使用二级缓存步骤：  
+  - 主配置文件开启二级缓存（默认开启）`<settings><setting name="cacheEnabled" value="true"/></settings>`  
+  - POJO配置文件开启二级缓存 `<cache/>` 
+  - 当前操作开启二级缓存（在select 标签中配置）`<select useCache="true">`
 ## mybatis 的注解开发(CRUD)  
+### 环境搭建  
+去除POJODao配置文件，改用注解实现。只要配置文件存在(不管用不用)，注解就会报错。  
+
+### 单表CRUD  
+
+### 多表查询
+### 缓存的配置
