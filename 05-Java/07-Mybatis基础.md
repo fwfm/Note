@@ -649,6 +649,113 @@ public class Role {
 去除POJODao配置文件，改用注解实现。只要配置文件存在(不管用不用)，注解就会报错。  
 
 ### 单表CRUD  
+```java
+public interface IUserDao {
 
-### 多表查询
-### 缓存的配置
+    @Select("select * from user")
+    List<User> findAll();
+
+    @Insert("insert into user(username,sex,address,birthday) values(#{username},#{sex},#{address},#{birthday})")
+    void addUser(User user);
+
+    @Update("update user set username=#{username},sex=#{sex},address=#{address},birthday=#{birthday} where id=#{id}")
+    void updateUser(User user);
+
+    @Delete("delete from user where id=#{id}")
+    void deleteUser(Integer id);
+
+    /**
+     * 根据范围进行查询(必须使用<script>才能有效)
+     * @param ids
+     * @return
+     */
+    @Select("<script>select * from user where id in <foreach collection='ids' open='(' item='uid' separator=',' close=')'>#{uid}</foreach></script>")
+    List<User> findByIdCollection(List<Integer> ids);
+
+    @Select("select * from user where id=#{id}")
+    User findById(Integer id);
+
+    /**
+     * 模糊查询
+     * @param username
+     * @return
+     */
+    @Select("select * from user where username like #{username}")
+    List<User> findByName(String username);
+
+    @Select("select count(*) from user")
+    Integer findTotal();
+}
+```  
+### 多表查询（使用结果集映射注解封装返回的结果集）  
+#### 注解解决实体类字段和数据库表字段不对应问题  
+```java
+@Select("select * from user")
+//设置id 使用@ResultMap(value={"userMap"})注解可指定对应的@Results
+@Results(id="userMap",value = {
+        //设置id为true  表示该字段对应数据库表主键
+        @Result(id = true,column = "id",property = "userId"),
+        @Result(column = "username",property = "userName"),
+        @Result(column = "sex",property = "userSex"),
+        @Result(column = "address",property = "userAddress"),
+        @Result(column = "birthday",property = "userBirthday")
+})
+List<User> findAll();  
+
+@Select("select * from user where id = #{userId}")
+//如果只有一个结果映射 value可以省略 直接使用@ResultMap("userMap")
+@ResultMap(value={"userMap"})
+User findById(Integer userId);
+```
+#### 使用结果集映射注解封装返回的结果集  
+- 一对一映射结果集设置
+```java  
+/**
+    * 查询所有账户 同时展示账户所属的用户信息
+    * column 指定POJO类在数据库中对应的列名
+    * property 指定实体类中对应的属性
+    * one 使用@One注解实现一对一映射关系 select属性指定用到的查询方法
+    * @return
+    */
+@Select("select * from account")
+@Results(id = "accountMap",value = {
+        @Result(id = true,column = "id",property = "id"),
+        @Result(column = "money",property = "money"),
+        @Result(column = "uid",property = "uid"),
+        @Result(column = "uid",property = "user",one = @One(fetchType = FetchType.EAGER,select = "com.ralife.dao.IUserDao.findById"))
+})
+List<Account> findAll();
+```  
+- 一对多映射结果集设置
+```java  
+//1. IUserDao.java
+ /**
+    * 一对多关系映射（使用@Many注解  懒加载）
+    * property 指定关联对象是多的POJO集合
+    * column 指定需要查询的表的主键
+    * @Many 指定使用一对多关系映射  通过select设置要执行的方法的全限定方法名
+    * @return
+    */
+@Select("select * from user")
+@Results(id = "userMap",value = {
+        @Result(id = true,column = "id",property = "id"),
+        @Result(column = "username",property = "username"),
+        @Result(column = "sex",property = "sex"),
+        @Result(column = "birthday",property = "birthday"),
+        @Result(column = "address",property = "address"),
+        @Result(column = "id",property = "accounts",many = @Many(select = "com.ralife.dao.IAccountDao.findByUid",fetchType = FetchType.LAZY)),
+})
+List<User> findUserAccount();  
+
+//2. IAccountDao.java
+@Select("select * from account where uid=#{userId}")
+List<Account> findByUid(Integer userId);
+```
+### 缓存的配置  
+- mybatis默认开启一级缓存，无需手动配置。
+
+- mybatis开启二级缓存：  
+
+  - 主配置文件添加`<settings><setting name="cacheEnabled" value="true"/></settings>`  
+
+  - DAO接口上使用`@CacheNamespace(blocking = true)`
