@@ -217,7 +217,7 @@ public void testInsert() throws IOException {
 ## mybatis 的参数和返回值设置   
 **参数值设置：**
 ### 传递pojo对象
-mybatis使用OGNL表达式解析对象字段的值，#{}或者${}括号中的值为POJP属性名称。  
+mybatis使用OGNL表达式解析对象字段的值，#{}或者${}括号中的值为POJO属性名称。  
 > OGNL：使用 `对象名.属性名` 的方式获取对象的属性而不是通过get()方法获取。  
 
 ### 传递pojo包装对象  
