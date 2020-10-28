@@ -140,10 +140,9 @@ public class UserControllerImpl implements IUserController {
 ## 作用
 用于建立请求URL和处理请求方法之间的关系。  
 ## 出现位置  
-- 类上  
-  很实用，为当前类所有方法的请求地址指定一个基准路径。
+- 类上：很实用，为当前类所有方法的请求地址指定一个基准路径。
 
-- 方法上(一般和方法名保持一致 前端发送请求时需要拼接类上的基准路径)
+- 方法上：一般和方法名保持一致，前端发送请求时需要拼接类上的基准路径。
 
 ## 参数(有多个参数时value不能省略)
 - value、path ：指定请求的URL。(单个值时可省略)  
@@ -161,19 +160,19 @@ public class UserControllerImpl implements IUserController {
 - 各个参数间是与的关系，必须所有参数都满足条件才会执行该方法。
 
 ## 支持Ant风格的URL  
-- ? ：匹配文件名中的**一个字符**
+- `?` ：匹配文件名中的**一个字符**
 
-- * ：匹配多个字符或一层路径 
+- `*` ：匹配多个字符或一层路径 
 
-- ** ：匹配多层路径  
+- `**` ：匹配多层路径  
 
-- /user/*/createUser?? ：匹配user任意子集目录下以createUser开头后面两个字符任意的映射  
+- /user/*/createUser?? ：匹配user任意子集目录下以createUser开头后面两个字符任意的映射。
 
-- /user/**/createUser ：匹配以user为根目录的所有createUser映射
+- /user/**/createUser ：匹配以user为根目录的所有createUser映射。
 ## 获取路径的值 @PathVariable（RESTFUL风格中常用）  
 ```java
 /**
-    * 可以使用@PathVariable注解获取请求路径 占位符中内的内容
+    * 可以使用@PathVariable注解获取请求路径的占位符中内的内容
     * 可以在任意路径写一个占位符{变量名}
     * 路径上的占位符只能占一层路径
     * @param info
@@ -944,7 +943,7 @@ public ModelAndView saveUser(User user, BindingResult bindingResult){
     return mav;
 }
 ```
-### 日期格式化
+### 常用格式化
 - @DateTimeFormat 注解可对 java.util.Date、java.util.Calendar、java.long.Long 时间类型进行标注：    
   
   - **pattern** 属性：类型为字符串。指定解析/格式化字段数据的模式，如：”yyyy-MM-dd hh:mm:ss”。  
@@ -1299,14 +1298,14 @@ public class FirstInterceptor implements HandlerInterceptor {
 
 - DispatcherServlet  默认装配的 HandlerExceptionResolver ：
   
-  - 没有使用 `<mvc:annotation-driven/>`配置：
+  - 没有使用 `<mvc:annotation-driven/>`配置：    
     AnnotationMethodHandlerExceptionResolver  
-    ResponseStatusExceptionResolver
+    ResponseStatusExceptionResolver  
     DefaultHandlerExceptionResolver
 
   - 使用 `<mvc:annotation-driven/>`配置：   
     ExceptionHandlerExceptionResolver  
-    ResponseStatusExceptionResolver
+    ResponseStatusExceptionResolver  
     DefaultHandlerExceptionResolver
 ## ExceptionHandlerExceptionResolver（@ExceptionHandler）
 ### 在控制器异常处理方法上添加@ExceptionHandler  
