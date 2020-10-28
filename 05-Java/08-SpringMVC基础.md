@@ -1196,6 +1196,26 @@ public String mutiUpload(String username,@RequestParam("video") MultipartFile he
 }
 ```
 # SpringMVC 文件下载
+```java
+@RequestMapping("/download")
+public void download(@RequestParam("url") String url, HttpSession session, HttpServletResponse response) throws IOException {
+    System.out.println("url: "+url);
+    //1.根据传入的url确定文件的路径并读取文件
+    InputStream is = session.getServletContext().getResourceAsStream(url);
+    //2.设置响应头并输出文件
+    response.setHeader("Content-Disposition","attachment;filename=demo.png");
+    OutputStream os = response.getOutputStream();
+    byte[] buf = new byte[1024];
+    int len = 0;
+    while ((len=is.read(buf)) != -1){
+        os.write(buf,0,len);
+    }
+    //3.关闭资源
+    os.close();
+    is.close();
+    System.out.println("download success!");
+}
+```
 # SpringMVC 拦截器
 ## 简介
 Spring MVC也可以使用拦截器对请求进行拦截处理，用户可以自定义拦截器来实现特定的功能，**自定义的拦截器必须实现HandlerInterceptor接口** ：  
@@ -1275,15 +1295,88 @@ public class FirstInterceptor implements HandlerInterceptor {
 - 只要有一个拦截器的preHandle()返回false，就不会执行控制器中的方法：  
 ![多个拦截器错误执行顺序](images/08-多个拦截器错误执行顺序.png)   
 # SpringMVC 异常处理
+- Spring MVC 通过 **HandlerExceptionResolver** 处理程序的异常，包括 Handler 映射、数据绑定以及目标方法执行时发生的异常。
+
+- DispatcherServlet  默认装配的 HandlerExceptionResolver ：
+  
+  - 没有使用 `<mvc:annotation-driven/>`配置：
+    AnnotationMethodHandlerExceptionResolver  
+    ResponseStatusExceptionResolver
+    DefaultHandlerExceptionResolver
+
+  - 使用 `<mvc:annotation-driven/>`配置：   
+    ExceptionHandlerExceptionResolver  
+    ResponseStatusExceptionResolver
+    DefaultHandlerExceptionResolver
 ## ExceptionHandlerExceptionResolver（@ExceptionHandler）
+### 在控制器异常处理方法上添加@ExceptionHandler  
+```java
+/**
+* 通过value属性指定可以处理的异常类型。
+* 如果需要将异常详细信息返回到前端页面，可以在方法中传入Exception对象  通过ModelAndView返回异常信息。
+* 如果存在多个异常处理方法，异常越精确执行的优先级越高
+* @return
+*/
+@ExceptionHandler(value = {ArithmeticException.class,NullPointerException.class})
+public ModelAndView handleException(Exception ex){
+    ModelAndView mav = new ModelAndView();
+    mav.setViewName("error");
+    mav.addObject("errorInfo",ex.getMessage());
+    return mav;
+}
+```
+### 在 自定义公共异常处理类 方法上添加@ExceptionHandler  
+```java
+@ControllerAdvice //使用该注解标识此类是用作全局异常的处理类
+public class GrobleException {
 
+    @ExceptionHandler
+    public ModelAndView handleAritcleException(ArithmeticException e){
+        ModelAndView mav = new ModelAndView();
+        mav.setViewName("error");
+        mav.addObject("errorInfo",e.getMessage());
+        return mav;
+    }
+}
+```
+### 异常执行顺序问题
+- 控制器中存在多个异常处理的方法，异常越精确优先级越高；
+
+- 控制器异常处理方法比自定义异常处理类优先级更高，即使自定义异常类中的处理的异常更精确也是如此；
+
+- 只要存在@ExceptionHandler标注的自定义异常处理方法，就不会再执行其它异常解析器。
 ## ResponseStatusExceptionResolver（@ResponseStatus）
-- @ResponseStatus 通常用来标注到自定义异常类上。（常用reason和HttpStatus两个属性）
+- @ResponseStatus 通常用来标注到自定义异常类上，优先级比@ExceptionHandler低。（常用reason和HttpStatus两个属性）
+```java
+@ResponseStatus(value=HttpStatus.FORBIDDEN,reason="用户名称和密码不匹配")
+public class UsernameNotMatchPasswordException extends RuntimeException{}
 
-
+@RequestMapping(value="/testResponseStatusExceptionResolver")
+public String testResponseStatusExceptionResolver(@RequestParam("i") int i){
+if(i==13){
+throw new UsernameNotMatchPasswordException();
+}
+return "success";
+}
+```  
+- 如果在控制器方法上也加上@ResponseStatus注解，则会覆盖自定义异常类上的@ResponseStatus注解。
 ## DefaultHandlerExceptionResolver（判断是否SpringMVC自带的异常）
-- 如果SpringMVC自带的异常没人处理，这个默认的异常解析器才会起作用。
+优先级最低，如果SpringMVC自带的异常没人处理，这个默认的异常解析器才会起作用。
 
+## SimpleMappingExceptionResolver（通过配置的方式实现异常处理）
+```xml
+<!--配置方式实现异常处理-->
+<bean id="exceptionResolver" class="org.springframework.web.servlet.handler.SimpleMappingExceptionResolver">
+    <!--配置异常对象信息，可省略，默认保存到exception对象中-->
+    <property name="exceptionAttribute" value="exception"></property>
+    <!--自定义异常映射 prop:key 指定具体的异常类型 prop:value 指定视图名-->
+    <property name="exceptionMappings">
+        <props>
+            <prop key="java.lang.ArithmeticException">error</prop>
+        </props>
+    </property>
+</bean>
+```
 # SpringMVC 运行流程
 - 前端控制器(DispatcherServlet)接收请求，调用doDispatch进行处理；  
 
@@ -1313,7 +1406,43 @@ public class FirstInterceptor implements HandlerInterceptor {
   
   - 执行拦截器的afterCompletion方法  
 ![springmvc运行流程图](images/08-springmvc运行流程图.png)
-# SpringMVC Spring整合SpringMVC  
+# Spring整合SpringMVC  
+- 通常情况下, 类似于数据源, 事务, service，dao，整合其他框架都是放在 Spring 的配置文件中；
 
+- 只有web相关处理（控制层）放在 Springmvc 的配置文件中；  
+
+- 多个 Spring IOC 容器之间可以设置为父子关系，以实现良好的解耦；默认情况下spring配置文件是springmvc配置文件的父类。**子类可以使用父类中的容器，但父类不能使用子类的**。  
+
+## SSM整合流程  
+- 第一步：web.xml配置监听器
+```xml
+<context-param>
+	<param-name>contextConfigLocation</param-name>
+	<param-value>classpath:beans.xml</param-value>
+</context-param>
+<listener>
+    <listener-class>org.springframework.web.context.ContextLoaderListener</listener-class>
+</listener>
+```
+- 第二步：spring核心配置文件(beans.xml)设置组件扫描（扫除控制层之外的）
+```xml
+<context:component-scan base-package="com.ralife">
+<context:exclude-filter type="annotation"
+        expression="org.springframework.stereotype.Controller"/>
+<context:exclude-filter type="annotation"
+        expression="org.springframework.web.bind.annotation.ControllerAdvice"/>
+</context:component-scan>
+
+```
+- 第三步：springmvc核心配置文件(springmvc.xml)设置组件扫描(只扫控制层的)
+```xml
+<context:component-scan base-package="com.ralife" use-default-filters="false">
+<context:include-filter type="annotation"
+           expression="org.springframework.stereotype.Controller"/>
+<context:include-filter type="annotation"
+           expression="org.springframework.web.bind.annotation.ControllerAdvice"/>
+</context:component-scan>
+
+```
 # IDEA控制台中文乱码  
 [IDEA控制台乱码](https://blog.csdn.net/lin_dark/article/details/99132548)
